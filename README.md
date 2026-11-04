@@ -1,17 +1,3 @@
-# pdf-compressor
-
-A small Flutter project.
-
-## Getting Started
-
-This project is a small test for dev using Flutter.
-
-The motivation was to reduce the size of files, scanned with a smartphone and saved in pdf-format.
-
-
-
-## German
-
 # PDF-Compressor
 
 Einfach und 100% offline PDF-Dateien unter Android verkleinern.
