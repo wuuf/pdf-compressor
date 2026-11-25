@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Vordergrund des adaptiven Android-Symbols (aus assets/store/play_icon.svg erzeugt) -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3D8BFD"/>
+      <stop offset="1" stop-color="#1747B5"/>
+    </linearGradient>
+    <marker id="head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="2.6" markerHeight="2.6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ffffff"/>
+    </marker>
+  </defs>
+  <g transform="translate(512,512) scale(2.1) translate(-256,-270)">
+
+  <!-- Kreispfeil um das Dokument (Lücke oben, Pfeilspitze oben rechts) -->
+  <path d="M135.8,149.8 A170,170 0 1 0 376.2,149.8"
+        fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" opacity="0.95"/>
+  <path d="M352,126 L398,132 L358,172 Z" fill="#ffffff" opacity="0.95" stroke="#ffffff" stroke-width="8" stroke-linejoin="round"/>
+
+  <!-- Dokument mit Eselsohr -->
+  <path d="M192,92 H290 L338,140 V298 Q338,314 322,314 H192 Q176,314 176,298 V108 Q176,92 192,92 Z" fill="#ffffff"/>
+  <path d="M290,92 V124 Q290,140 306,140 H338 Z" fill="#C9DCFF"/>
+
+  <!-- Beschriftung PDF -->
+  <text x="248" y="182" text-anchor="middle"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="800" font-size="54"
+        fill="#1A56C4" letter-spacing="1">PDF</text>
+
+  <!-- Textzeilen -->
+  <g stroke="#A9C4F2" stroke-width="11" stroke-linecap="round">
+    <line x1="202" y1="216" x2="312" y2="216"/>
+    <line x1="202" y1="242" x2="312" y2="242"/>
+    <line x1="202" y1="268" x2="276" y2="268"/>
+  </g>
+
+  <!-- Pfeile nach innen: Verkleinern -->
+  <g stroke="#ffffff" stroke-width="15" stroke-linecap="round" fill="none" marker-end="url(#head)">
+    <line x1="198" y1="396" x2="222" y2="362"/>
+    <line x1="256" y1="404" x2="256" y2="358"/>
+    <line x1="314" y1="396" x2="290" y2="362"/>
+  </g>
+</g>
+</svg>

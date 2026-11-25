@@ -1,29 +1,29 @@
 /* PDF-Compressor – Webseite. Farben passend zur App (Material 3, Seed: redAccent). */
 :root {
-  --bg: #fff8f7;
+  --bg: #f9f9ff;
   --surface: #ffffff;
-  --primary: #8f4a47;
-  --primary-container: #ffdad7;
-  --on-primary-container: #3b0909;
-  --secondary-container: #f5ddda;
-  --text: #231918;
-  --muted: #534341;
-  --border: #e7d6d4;
+  --primary: #1a56c4;
+  --primary-container: #dbe4ff;
+  --on-primary-container: #001a42;
+  --secondary-container: #dde3f3;
+  --text: #1a1b20;
+  --muted: #44474f;
+  --border: #d9dce6;
   --radius: 20px;
   --max: 960px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1a1111;
-    --surface: #231918;
-    --primary: #ffb3ae;
-    --primary-container: #733331;
-    --on-primary-container: #ffdad7;
-    --secondary-container: #3d2c2b;
-    --text: #f1dedc;
-    --muted: #d8c2bf;
-    --border: #534341;
+    --bg: #111318;
+    --surface: #1a1c21;
+    --primary: #b0c6ff;
+    --primary-container: #00419a;
+    --on-primary-container: #dbe4ff;
+    --secondary-container: #2a2f3c;
+    --text: #e2e2e9;
+    --muted: #c4c6d0;
+    --border: #44474f;
   }
 }
 
@@ -72,7 +72,7 @@ a:hover { text-decoration-thickness: 2px; }
   border-radius: 50%; background: var(--primary-container);
   display: grid; place-items: center;
 }
-.hero-icon img { width: 72px; height: 72px; border-radius: 14px; }
+.hero-icon img { width: 80px; height: 80px; border-radius: 18px; }
 .hero h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.15; margin: 0 0 12px; }
 .hero p.lead { font-size: 1.2rem; color: var(--muted); margin: 0 auto 24px; max-width: 34em; }
 .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 32px; }
