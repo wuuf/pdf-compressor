@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdf/pdf.dart';
@@ -68,8 +68,10 @@ class PdfCompressorApp extends StatelessWidget {
       },
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.redAccent,
+          seedColor: const Color(0xFF1A56C4),
           brightness: Brightness.light,
+          // Kräftiges Blau wie im App-Symbol statt abgeschwächter Töne
+          dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
         ),
         useMaterial3: true,
       ),
@@ -408,6 +410,12 @@ Future<void> _shareCompressedPdf() async {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        // Dunkle Statusleisten-Symbole auf hellem Hintergrund
+        systemOverlayStyle: SystemUiOverlayStyle.dark.copyWith(
+          statusBarColor: Colors.transparent,
+          systemNavigationBarColor: colorScheme.surface,
+          systemNavigationBarIconBrightness: Brightness.dark,
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline_rounded),
@@ -436,7 +444,7 @@ Future<void> _shareCompressedPdf() async {
                   child: Icon(
                     Icons.picture_as_pdf_rounded,
                     size: 72,
-                    color: colorScheme.primary,
+                    color: colorScheme.onPrimaryContainer,
                   ),
                 ),
               ),
