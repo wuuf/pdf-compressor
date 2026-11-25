@@ -1,4 +1,4 @@
-package com.example.pdf_tool
+package net.grafm.pdfcompressor
 
 import io.flutter.embedding.android.FlutterActivity
 
