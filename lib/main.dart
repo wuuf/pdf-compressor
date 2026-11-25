@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -10,6 +11,8 @@ import 'package:pdfrx/pdfrx.dart' as pdfrx;
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+
+import 'l10n/app_localizations.dart';
 
 /// Obergrenze für die längste Seite eines gerenderten Seitenbilds in Pixeln.
 /// Schützt vor Speichermangel bei übergroßen Seiten (z. B. Pläne, Poster).
@@ -47,8 +50,22 @@ class PdfCompressorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PDF-Compressor',
+      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
+      // Sprache folgt dem Gerät; nicht unterstützte Sprachen fallen auf Englisch zurück.
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      localeResolutionCallback: (locale, supported) {
+        for (final s in supported) {
+          if (s.languageCode == locale?.languageCode) return s;
+        }
+        return const Locale('en');
+      },
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.redAccent,
@@ -84,6 +101,18 @@ class _LandingPageState extends State<LandingPage> {
   // true, wenn die Komprimierung nichts gebracht hat und das Original übernommen wurde
   bool _keptOriginal = false;
 
+  // Übersetzte Texte für die aktuelle Gerätesprache
+  AppLocalizations get _l => AppLocalizations.of(context);
+
+  // Dateiname der Ausgabe, z. B. "Rechnung_komprimiert.pdf" / "Rechnung_compressed.pdf"
+  String _outputFileName() {
+    final String originalName = _selectedFile!.name.replaceAll(
+      RegExp(r'\.pdf$', caseSensitive: false),
+      '',
+    );
+    return '${originalName}_${_l.compressedFileSuffix}.pdf';
+  }
+
   // Info-Dialog einblenden
   void _showInfoDialog(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -99,24 +128,24 @@ class _LandingPageState extends State<LandingPage> {
             children: [
               Icon(Icons.info_outline_rounded, color: colorScheme.primary),
               const SizedBox(width: 10),
-              const Text('Über die App'),
+              Text(_l.aboutTitle),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildInfoRow(Icons.person_outline_rounded, 'Autor', 'Michael Graf'),
+              _buildInfoRow(Icons.person_outline_rounded, _l.aboutAuthor, 'Michael Graf'),
               const SizedBox(height: 12),
-              _buildInfoRow(Icons.flutter_dash_rounded, 'Technologie', 'Programmiert in Flutter'),
+              _buildInfoRow(Icons.flutter_dash_rounded, _l.aboutTechnology, _l.aboutTechnologyValue),
               const SizedBox(height: 12),
-              _buildInfoRow(Icons.gavel_rounded, 'Lizenz', 'Code unter Apache License 2.0'),
+              _buildInfoRow(Icons.gavel_rounded, _l.aboutLicense, _l.aboutLicenseValue),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Schließen'),
+              child: Text(_l.close),
             ),
           ],
         );
@@ -178,7 +207,7 @@ class _LandingPageState extends State<LandingPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Fehler beim Öffnen der Datei: $e'),
+          content: Text(_l.errorOpenFile('$e')),
           backgroundColor: Colors.red,
         ),
       );
@@ -268,8 +297,8 @@ class _LandingPageState extends State<LandingPage> {
       }
 
       final Directory tempDir = await getTemporaryDirectory();
-      final String originalName = _selectedFile!.name.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
-      final String outputPath = '${tempDir.path}/${originalName}_komprimiert.pdf';
+      if (!mounted) return;
+      final String outputPath = '${tempDir.path}/${_outputFileName()}';
 
       final File outFile = File(outputPath);
       final Uint8List outputBytes = await outputPdf.save();
@@ -300,7 +329,7 @@ class _LandingPageState extends State<LandingPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Fehler bei der Komprimierung: $e'),
+          content: Text(_l.errorCompress('$e')),
           backgroundColor: Colors.red,
         ),
       );
@@ -313,18 +342,15 @@ Future<void> _saveCompressedPdfToDevice() async {
     if (_compressedFile == null || _selectedFile == null) return;
 
     try {
-      final String originalName = _selectedFile!.name.replaceAll(
-        RegExp(r'\.pdf$', caseSensitive: false),
-        '',
-      );
-      final String suggestedName = '${originalName}_komprimiert.pdf';
+      final String suggestedName = _outputFileName();
+      final String dialogTitle = _l.saveDialogTitle;
 
       // Bytes der fertig komprimierten Datei lesen
       final Uint8List bytes = await _compressedFile!.readAsBytes();
 
       // Öffnet den Android-"Speichern unter"-Dialog (gibt in v13 ein Uri? zurück)
       final Uri? savedUri = await FilePicker.saveFile(
-        dialogTitle: 'Komprimierte PDF speichern',
+        dialogTitle: dialogTitle,
         fileName: suggestedName,
         type: FileType.custom,
         allowedExtensions: ['pdf'],
@@ -333,8 +359,8 @@ Future<void> _saveCompressedPdfToDevice() async {
 
       if (savedUri != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PDF erfolgreich auf dem Gerät gespeichert!'),
+          SnackBar(
+            content: Text(_l.savedSuccess),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -344,7 +370,7 @@ Future<void> _saveCompressedPdfToDevice() async {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Fehler beim Speichern: $e'),
+          content: Text(_l.errorSave('$e')),
           backgroundColor: Colors.red,
         ),
       );
@@ -355,7 +381,7 @@ Future<void> _shareCompressedPdf() async {
     if (_compressedFile == null) return;
     await Share.shareXFiles(
       [XFile(_compressedFile!.path)],
-      text: 'Komprimiert mit PDF-Compressor',
+      text: _l.shareText,
     );
   }
   
@@ -367,9 +393,9 @@ Future<void> _shareCompressedPdf() async {
   }
 
   String _getCompressionLabel() {
-    if (_compressionLevel == 0) return 'Leicht (Hohe Qualität, 150 DPI)';
-    if (_compressionLevel == 1) return 'Empfohlen (Gute Balance, 110 DPI)';
-    return 'Stark (Kleinste Datei, 72 DPI)';
+    if (_compressionLevel == 0) return _l.levelLight;
+    if (_compressionLevel == 1) return _l.levelRecommended;
+    return _l.levelStrong;
   }
 
   @override
@@ -385,7 +411,7 @@ Future<void> _shareCompressedPdf() async {
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline_rounded),
-            tooltip: 'Info',
+            tooltip: _l.infoTooltip,
             onPressed: () => _showInfoDialog(context),
           ),
           const SizedBox(width: 8),
@@ -416,7 +442,7 @@ Future<void> _shareCompressedPdf() async {
               ),
               const SizedBox(height: 24),
               Text(
-                'PDF-Compressor',
+                _l.appTitle,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                       fontWeight: FontWeight.bold,
@@ -425,7 +451,7 @@ Future<void> _shareCompressedPdf() async {
               ),
               const SizedBox(height: 8),
               Text(
-                'Einfach und offline PDF-Dateien verkleinern',
+                _l.appSubtitle,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
@@ -435,9 +461,9 @@ Future<void> _shareCompressedPdf() async {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildFeatureChip(context, Icons.wifi_off_rounded, '100% Offline'),
+                  _buildFeatureChip(context, Icons.wifi_off_rounded, _l.featureOffline),
                   const SizedBox(width: 12),
-                  _buildFeatureChip(context, Icons.shield_outlined, 'Datenschutz-sicher'),
+                  _buildFeatureChip(context, Icons.shield_outlined, _l.featurePrivacy),
                 ],
               ),
 
@@ -469,7 +495,7 @@ Future<void> _shareCompressedPdf() async {
                                   style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 Text(
-                                  'Originalgröße: ${_formatFileSize(_selectedFileSize ?? 0)}',
+                                  _l.originalSize(_formatFileSize(_selectedFileSize ?? 0)),
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ],
@@ -478,7 +504,7 @@ Future<void> _shareCompressedPdf() async {
                           if (!_isCompressing)
                             IconButton(
                               icon: const Icon(Icons.close_rounded),
-                              tooltip: 'Andere Datei wählen',
+                              tooltip: _l.chooseOtherFile,
                               onPressed: () {
                                 setState(() {
                                   _selectedFile = null;
@@ -494,7 +520,7 @@ Future<void> _shareCompressedPdf() async {
                       if (_compressedFile == null && !_isCompressing) ...[
                         const Divider(height: 24),
                         Text(
-                          'Kompressionsstärke: ${_getCompressionLabel()}',
+                          _l.compressionStrength(_getCompressionLabel()),
                           style: Theme.of(context).textTheme.labelLarge,
                         ),
                         Slider(
@@ -522,7 +548,7 @@ Future<void> _shareCompressedPdf() async {
                               child: CircularProgressIndicator(strokeWidth: 3),
                             ),
                             const SizedBox(width: 16),
-                            Text('Verarbeite Seite $_processedPages...'),
+                            Text(_l.processingPage(_processedPages)),
                           ],
                         ),
                       ],
@@ -536,9 +562,9 @@ Future<void> _shareCompressedPdf() async {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Neue Größe:',
-                                  style: TextStyle(fontSize: 12),
+                                Text(
+                                  _l.newSize,
+                                  style: const TextStyle(fontSize: 12),
                                 ),
                                 Text(
                                   _formatFileSize(_compressedFileSize!),
@@ -560,7 +586,7 @@ Future<void> _shareCompressedPdf() async {
                                 child: Text(
                                   !_keptOriginal && _compressedFileSize! < _selectedFileSize!
                                       ? '-${((1 - (_compressedFileSize! / _selectedFileSize!)) * 100).toStringAsFixed(0)}%'
-                                      : 'Bereits optimal',
+                                      : _l.alreadyOptimal,
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: Colors.green.shade900,
@@ -572,8 +598,7 @@ Future<void> _shareCompressedPdf() async {
                         if (_keptOriginal) ...[
                           const SizedBox(height: 8),
                           Text(
-                            'Diese PDF lässt sich nicht weiter verkleinern. '
-                            'Das Original wird unverändert übernommen.',
+                            _l.keptOriginalHint,
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -594,7 +619,7 @@ Future<void> _shareCompressedPdf() async {
                     _selectedFile == null ? Icons.upload_file_rounded : Icons.compress_rounded,
                   ),
                   label: Text(
-                    _selectedFile == null ? 'PDF auswählen' : 'Jetzt verkleinern',
+                    _selectedFile == null ? _l.pickPdf : _l.compressNow,
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                   style: FilledButton.styleFrom(
@@ -615,9 +640,9 @@ Future<void> _shareCompressedPdf() async {
                           child: FilledButton.icon(
                             onPressed: _saveCompressedPdfToDevice,
                             icon: const Icon(Icons.download_rounded),
-                            label: const Text(
-                              'Speichern',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            label: Text(
+                              _l.save,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                             ),
                             style: FilledButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 18),
@@ -633,9 +658,9 @@ Future<void> _shareCompressedPdf() async {
                           child: OutlinedButton.icon(
                             onPressed: _shareCompressedPdf,
                             icon: const Icon(Icons.share_rounded),
-                            label: const Text(
-                              'Teilen',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            label: Text(
+                              _l.share,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                             ),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 18),
@@ -650,7 +675,7 @@ Future<void> _shareCompressedPdf() async {
                     const SizedBox(height: 8),
                     TextButton(
                       onPressed: _pickPdfFile,
-                      child: const Text('Weiteres PDF verkleinern'),
+                      child: Text(_l.compressAnother),
                     ),
                   ],
                 ), 
