@@ -46,4 +46,14 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('PDF auswählen'), findsOneWidget);
   });
+
+  testWidgets('info dialog links to the source code', (tester) async {
+    await pumpWithLocale(tester, const Locale('de', 'DE'));
+
+    await tester.tap(find.byTooltip('Info'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Quellcode'), findsOneWidget);
+    expect(find.text('github.com/wuuf/pdf-compressor'), findsOneWidget);
+  });
 }

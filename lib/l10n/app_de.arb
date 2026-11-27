@@ -15,6 +15,8 @@
   "aboutTechnologyValue": "Programmiert in Flutter",
   "aboutLicense": "Lizenz",
   "aboutLicenseValue": "Code unter Apache License 2.0",
+  "aboutSourceCode": "Quellcode",
+  "linkCopied": "Link in die Zwischenablage kopiert",
   "close": "Schließen",
 
   "pickPdf": "PDF auswählen",

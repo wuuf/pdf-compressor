@@ -18,11 +18,16 @@ import 'l10n/app_localizations.dart';
 /// Schützt vor Speichermangel bei übergroßen Seiten (z. B. Pläne, Poster).
 const int _maxRenderPixels = 3000;
 
-/// Kanal zur nativen Android-Seite: kopiert eine Datei per Datenstrom in den
-/// vom Nutzer gewählten Speicherort, ohne sie ganz in den Speicher zu laden.
-const MethodChannel _saveChannel = MethodChannel(
-  'net.grafm.pdfcompressor/save',
+/// Kanal zur nativen Android-Seite:
+/// - saveFile: kopiert eine Datei per Datenstrom in den vom Nutzer gewählten
+///   Speicherort, ohne sie ganz in den Speicher zu laden.
+/// - openUrl: öffnet einen Link im Browser (ohne zusätzliches Paket).
+const MethodChannel _platformChannel = MethodChannel(
+  'net.grafm.pdfcompressor/platform',
 );
+
+/// Quellcode der App
+const String _repoUrl = 'https://github.com/wuuf/pdf-compressor';
 
 /// Eine Seite konnte nicht gerendert werden ([page] beginnt bei 1).
 class _PageRenderException implements Exception {
@@ -171,6 +176,13 @@ class _LandingPageState extends State<LandingPage> {
                 _l.aboutLicense,
                 _l.aboutLicenseValue,
               ),
+              const SizedBox(height: 12),
+              _buildInfoRow(
+                Icons.code_rounded,
+                _l.aboutSourceCode,
+                _repoUrl.replaceFirst('https://', ''),
+                onTap: _openRepo,
+              ),
             ],
           ),
           actions: [
@@ -184,9 +196,46 @@ class _LandingPageState extends State<LandingPage> {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String title, String value) {
+  // Öffnet das Git-Repo im Browser. Gibt es keinen Browser, wird der Link
+  // stattdessen in die Zwischenablage kopiert.
+  Future<void> _openRepo() async {
+    bool opened = false;
+    try {
+      opened =
+          Platform.isAndroid &&
+          (await _platformChannel.invokeMethod<bool>('openUrl', {
+                'url': _repoUrl,
+              }) ??
+              false);
+    } on PlatformException {
+      opened = false;
+    }
+    if (opened) return;
+    await Clipboard.setData(const ClipboardData(text: _repoUrl));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(_l.linkCopied)));
+  }
+
+  Widget _buildInfoRow(
+    IconData icon,
+    String title,
+    String value, {
+    VoidCallback? onTap,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Row(
+    final Widget valueText = Text(
+      value,
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        // Links in Primärfarbe und unterstrichen
+        color: onTap != null ? colorScheme.primary : null,
+        decoration: onTap != null ? TextDecoration.underline : null,
+        decorationColor: colorScheme.primary,
+      ),
+    );
+    final row = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
@@ -202,17 +251,31 @@ class _LandingPageState extends State<LandingPage> {
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              // Links bleiben einzeilig und werden bei Bedarf leicht
+              // verkleinert; normale Werte dürfen umbrechen.
+              if (onTap != null)
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: valueText,
+                )
+              else
+                valueText,
             ],
           ),
         ),
+        if (onTap != null)
+          Icon(Icons.open_in_new_rounded, size: 18, color: colorScheme.primary),
       ],
+    );
+    if (onTap == null) return row;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: row,
+      ),
     );
   }
 
@@ -400,7 +463,7 @@ class _LandingPageState extends State<LandingPage> {
         // per Datenstrom kopiert. Wichtig, wenn das Original übernommen wurde
         // und mehrere hundert MB groß ist.
         saved =
-            await _saveChannel.invokeMethod<bool>('saveFile', {
+            await _platformChannel.invokeMethod<bool>('saveFile', {
               'path': _compressedFile!.path,
               'name': suggestedName,
             }) ??

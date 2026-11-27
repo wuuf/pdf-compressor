@@ -15,6 +15,8 @@
   "aboutTechnologyValue": "Built with Flutter",
   "aboutLicense": "License",
   "aboutLicenseValue": "Code under Apache License 2.0",
+  "aboutSourceCode": "Source code",
+  "linkCopied": "Link copied to clipboard",
   "close": "Close",
 
   "pickPdf": "Choose PDF",

@@ -1,7 +1,9 @@
 package net.grafm.pdfcompressor
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -16,6 +18,10 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
+                if (call.method == "openUrl") {
+                    openUrl(call.argument<String>("url"), result)
+                    return@setMethodCallHandler
+                }
                 if (call.method != "saveFile") {
                     result.notImplemented()
                     return@setMethodCallHandler
@@ -67,8 +73,24 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    // Link im Browser öffnen. Die App selbst braucht dafür keine
+    // Internet-Berechtigung, der Browser lädt die Seite.
+    private fun openUrl(url: String?, result: MethodChannel.Result) {
+        val uri = url?.let(Uri::parse)
+        if (uri == null || uri.scheme != "https") {
+            result.success(false)
+            return
+        }
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE))
+            result.success(true)
+        } catch (e: ActivityNotFoundException) {
+            result.success(false)
+        }
+    }
+
     private companion object {
-        const val CHANNEL = "net.grafm.pdfcompressor/save"
+        const val CHANNEL = "net.grafm.pdfcompressor/platform"
         const val REQUEST_SAVE = 0x5AFE
     }
 }

@@ -176,6 +176,18 @@ abstract class AppLocalizations {
   /// **'Code unter Apache License 2.0'**
   String get aboutLicenseValue;
 
+  /// No description provided for @aboutSourceCode.
+  ///
+  /// In de, this message translates to:
+  /// **'Quellcode'**
+  String get aboutSourceCode;
+
+  /// No description provided for @linkCopied.
+  ///
+  /// In de, this message translates to:
+  /// **'Link in die Zwischenablage kopiert'**
+  String get linkCopied;
+
   /// No description provided for @close.
   ///
   /// In de, this message translates to:

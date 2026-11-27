@@ -50,6 +50,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutLicenseValue => 'Code under Apache License 2.0';
 
   @override
+  String get aboutSourceCode => 'Source code';
+
+  @override
+  String get linkCopied => 'Link copied to clipboard';
+
+  @override
   String get close => 'Close';
 
   @override
