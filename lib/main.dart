@@ -492,22 +492,26 @@ class _LandingPageState extends State<LandingPage> {
                     children: [
                       const Spacer(),
 
-                      // Kopfbereich: Icon + Titel
-                      Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: colorScheme.primaryContainer,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.picture_as_pdf_rounded,
-                            size: 72,
-                            color: colorScheme.onPrimaryContainer,
+                      // Kopfbereich: Icon + Titel. Das große Icon ist reine Deko und
+                      // wird ausgeblendet, sobald eine Datei gewählt ist, damit
+                      // Dateikarte und Button auch auf kleineren Displays passen.
+                      if (_selectedFile == null) ...[
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.picture_as_pdf_rounded,
+                              size: 72,
+                              color: colorScheme.onPrimaryContainer,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 24),
+                      ],
                       Text(
                         _l.appTitle,
                         textAlign: TextAlign.center,
@@ -550,6 +554,8 @@ class _LandingPageState extends State<LandingPage> {
                       ],
 
                       const Spacer(),
+                      // Mindestabstand, falls der Spacer auf null schrumpft
+                      const SizedBox(height: 16),
 
                       // Wenn eine Datei ausgewählt wurde: Datei-Info & Einstellungen anzeigen
                       if (_selectedFile != null) ...[
