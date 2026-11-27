@@ -17,6 +17,7 @@ void main() {
     expect(find.text('PDF-Compressor'), findsOneWidget);
     expect(find.text('Einfach und offline PDF-Dateien verkleinern'), findsOneWidget);
     expect(find.text('PDF auswählen'), findsOneWidget);
+    expect(find.textContaining('Seiten werden zu Bildern.', findRichText: true), findsOneWidget);
   });
 
   testWidgets('start page in English', (tester) async {
@@ -24,6 +25,7 @@ void main() {
 
     expect(find.text('PDF Compressor'), findsOneWidget);
     expect(find.text('Choose PDF'), findsOneWidget);
+    expect(find.textContaining('Pages become images.', findRichText: true), findsOneWidget);
   });
 
   testWidgets('unsupported language falls back to English', (tester) async {

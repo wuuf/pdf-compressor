@@ -542,6 +542,13 @@ class _LandingPageState extends State<LandingPage> {
                         ],
                       ),
 
+                      // Hinweis: Seiten werden zu Bildern, Text geht als Text verloren.
+                      // Nach dem Verkleinern ausgeblendet, um Platz für das Ergebnis zu lassen.
+                      if (_compressedFile == null) ...[
+                        const SizedBox(height: 20),
+                        _buildTextLossHint(context),
+                      ],
+
                       const Spacer(),
 
                       // Wenn eine Datei ausgewählt wurde: Datei-Info & Einstellungen anzeigen
@@ -809,6 +816,43 @@ class _LandingPageState extends State<LandingPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTextLossHint(BuildContext context) {
+    // Helles Bernstein mit dunkler Schrift: auffällig, aber gut lesbar
+    const Color background = Color(0xFFFFF3DC);
+    const Color border = Color(0xFFF2C46D);
+    const Color foreground = Color(0xFF4A3000);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: background,
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 22, color: foreground),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${_l.textLossHintTitle} ',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  TextSpan(text: _l.textLossHintBody),
+                ],
+              ),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: foreground),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -22,6 +22,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get featurePrivacy => 'Datenschutz-sicher';
 
   @override
+  String get textLossHintTitle => 'Seiten werden zu Bildern.';
+
+  @override
+  String get textLossHintBody =>
+      'Text lässt sich danach nicht mehr markieren, kopieren oder durchsuchen. Ideal für Scans.';
+
+  @override
   String get infoTooltip => 'Info';
 
   @override

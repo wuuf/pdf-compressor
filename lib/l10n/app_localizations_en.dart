@@ -22,6 +22,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get featurePrivacy => 'Privacy-friendly';
 
   @override
+  String get textLossHintTitle => 'Pages become images.';
+
+  @override
+  String get textLossHintBody =>
+      'Text can no longer be selected, copied or searched afterwards. Best for scanned documents.';
+
+  @override
   String get infoTooltip => 'Info';
 
   @override

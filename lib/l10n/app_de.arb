@@ -5,6 +5,8 @@
   "appSubtitle": "Einfach und offline PDF-Dateien verkleinern",
   "featureOffline": "100% Offline",
   "featurePrivacy": "Datenschutz-sicher",
+  "textLossHintTitle": "Seiten werden zu Bildern.",
+  "textLossHintBody": "Text lässt sich danach nicht mehr markieren, kopieren oder durchsuchen. Ideal für Scans.",
 
   "infoTooltip": "Info",
   "aboutTitle": "Über die App",

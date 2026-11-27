@@ -5,6 +5,8 @@
   "appSubtitle": "Shrink PDF files easily and offline",
   "featureOffline": "100% Offline",
   "featurePrivacy": "Privacy-friendly",
+  "textLossHintTitle": "Pages become images.",
+  "textLossHintBody": "Text can no longer be selected, copied or searched afterwards. Best for scanned documents.",
 
   "infoTooltip": "Info",
   "aboutTitle": "About the app",

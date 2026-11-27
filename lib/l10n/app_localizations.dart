@@ -122,6 +122,18 @@ abstract class AppLocalizations {
   /// **'Datenschutz-sicher'**
   String get featurePrivacy;
 
+  /// No description provided for @textLossHintTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Seiten werden zu Bildern.'**
+  String get textLossHintTitle;
+
+  /// No description provided for @textLossHintBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Text lässt sich danach nicht mehr markieren, kopieren oder durchsuchen. Ideal für Scans.'**
+  String get textLossHintBody;
+
   /// No description provided for @infoTooltip.
   ///
   /// In de, this message translates to:
