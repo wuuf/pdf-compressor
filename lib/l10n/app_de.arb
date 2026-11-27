@@ -1,0 +1,64 @@
+{
+  "@@locale": "de",
+
+  "appTitle": "PDF-Compressor",
+  "appSubtitle": "Einfach und offline PDF-Dateien verkleinern",
+  "featureOffline": "100% Offline",
+  "featurePrivacy": "Datenschutz-sicher",
+
+  "infoTooltip": "Info",
+  "aboutTitle": "Über die App",
+  "aboutAuthor": "Autor",
+  "aboutTechnology": "Technologie",
+  "aboutTechnologyValue": "Programmiert in Flutter",
+  "aboutLicense": "Lizenz",
+  "aboutLicenseValue": "Code unter Apache License 2.0",
+  "close": "Schließen",
+
+  "pickPdf": "PDF auswählen",
+  "compressNow": "Jetzt verkleinern",
+  "chooseOtherFile": "Andere Datei wählen",
+  "compressAnother": "Weiteres PDF verkleinern",
+  "save": "Speichern",
+  "share": "Teilen",
+
+  "originalSize": "Originalgröße: {size}",
+  "@originalSize": {
+    "placeholders": { "size": { "type": "String", "example": "14.1 KB" } }
+  },
+  "compressionStrength": "Kompressionsstärke: {level}",
+  "@compressionStrength": {
+    "placeholders": { "level": { "type": "String" } }
+  },
+  "levelLight": "Leicht (Hohe Qualität, 150 DPI)",
+  "levelRecommended": "Empfohlen (Gute Balance, 110 DPI)",
+  "levelStrong": "Stark (Kleinste Datei, 72 DPI)",
+  "processingPage": "Verarbeite Seite {page}...",
+  "@processingPage": {
+    "placeholders": { "page": { "type": "int" } }
+  },
+  "newSize": "Neue Größe:",
+  "alreadyOptimal": "Bereits optimal",
+  "keptOriginalHint": "Diese PDF lässt sich nicht weiter verkleinern. Das Original wird unverändert übernommen.",
+
+  "errorOpenFile": "Fehler beim Öffnen der Datei: {error}",
+  "@errorOpenFile": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "errorCompress": "Fehler bei der Komprimierung: {error}",
+  "@errorCompress": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "errorSave": "Fehler beim Speichern: {error}",
+  "@errorSave": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "saveDialogTitle": "Komprimierte PDF speichern",
+  "savedSuccess": "PDF erfolgreich auf dem Gerät gespeichert!",
+  "shareText": "Komprimiert mit PDF-Compressor",
+  "compressedFileSuffix": "komprimiert",
+  "@compressedFileSuffix": {
+    "description": "Wird an den Dateinamen angehängt: <name>_<suffix>.pdf. Nur Buchstaben, keine Leerzeichen."
+  }
+}

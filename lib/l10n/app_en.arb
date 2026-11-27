@@ -1,0 +1,43 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "PDF Compressor",
+  "appSubtitle": "Shrink PDF files easily and offline",
+  "featureOffline": "100% Offline",
+  "featurePrivacy": "Privacy-friendly",
+
+  "infoTooltip": "Info",
+  "aboutTitle": "About the app",
+  "aboutAuthor": "Author",
+  "aboutTechnology": "Technology",
+  "aboutTechnologyValue": "Built with Flutter",
+  "aboutLicense": "License",
+  "aboutLicenseValue": "Code under Apache License 2.0",
+  "close": "Close",
+
+  "pickPdf": "Choose PDF",
+  "compressNow": "Compress now",
+  "chooseOtherFile": "Choose another file",
+  "compressAnother": "Compress another PDF",
+  "save": "Save",
+  "share": "Share",
+
+  "originalSize": "Original size: {size}",
+  "compressionStrength": "Compression level: {level}",
+  "levelLight": "Light (High quality, 150 DPI)",
+  "levelRecommended": "Recommended (Good balance, 110 DPI)",
+  "levelStrong": "Strong (Smallest file, 72 DPI)",
+  "processingPage": "Processing page {page}...",
+  "newSize": "New size:",
+  "alreadyOptimal": "Already optimal",
+  "keptOriginalHint": "This PDF can't be made any smaller. The original is kept unchanged.",
+
+  "errorOpenFile": "Error opening the file: {error}",
+  "errorCompress": "Error during compression: {error}",
+  "errorSave": "Error while saving: {error}",
+
+  "saveDialogTitle": "Save compressed PDF",
+  "savedSuccess": "PDF saved to your device!",
+  "shareText": "Compressed with PDF Compressor",
+  "compressedFileSuffix": "compressed"
+}
