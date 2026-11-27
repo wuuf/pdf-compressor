@@ -108,6 +108,11 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String errorRenderPage(int page) {
+    return 'Seite $page konnte nicht verarbeitet werden. Die PDF wurde nicht verkleinert.';
+  }
+
+  @override
   String errorSave(String error) {
     return 'Fehler beim Speichern: $error';
   }

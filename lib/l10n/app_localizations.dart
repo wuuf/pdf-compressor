@@ -272,6 +272,12 @@ abstract class AppLocalizations {
   /// **'Fehler bei der Komprimierung: {error}'**
   String errorCompress(String error);
 
+  /// No description provided for @errorRenderPage.
+  ///
+  /// In de, this message translates to:
+  /// **'Seite {page} konnte nicht verarbeitet werden. Die PDF wurde nicht verkleinert.'**
+  String errorRenderPage(int page);
+
   /// No description provided for @errorSave.
   ///
   /// In de, this message translates to:

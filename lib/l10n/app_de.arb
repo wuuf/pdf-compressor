@@ -49,6 +49,10 @@
   "@errorCompress": {
     "placeholders": { "error": { "type": "String" } }
   },
+  "errorRenderPage": "Seite {page} konnte nicht verarbeitet werden. Die PDF wurde nicht verkleinert.",
+  "@errorRenderPage": {
+    "placeholders": { "page": { "type": "int" } }
+  },
   "errorSave": "Fehler beim Speichern: {error}",
   "@errorSave": {
     "placeholders": { "error": { "type": "String" } }

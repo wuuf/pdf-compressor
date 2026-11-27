@@ -34,6 +34,7 @@
 
   "errorOpenFile": "Error opening the file: {error}",
   "errorCompress": "Error during compression: {error}",
+  "errorRenderPage": "Page {page} could not be processed. The PDF was not compressed.",
   "errorSave": "Error while saving: {error}",
 
   "saveDialogTitle": "Save compressed PDF",

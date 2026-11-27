@@ -1,22 +1,34 @@
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart' as pdfrx;
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'jpeg_pdf_writer.dart';
 import 'l10n/app_localizations.dart';
 
 /// Obergrenze für die längste Seite eines gerenderten Seitenbilds in Pixeln.
 /// Schützt vor Speichermangel bei übergroßen Seiten (z. B. Pläne, Poster).
 const int _maxRenderPixels = 3000;
+
+/// Kanal zur nativen Android-Seite: kopiert eine Datei per Datenstrom in den
+/// vom Nutzer gewählten Speicherort, ohne sie ganz in den Speicher zu laden.
+const MethodChannel _saveChannel = MethodChannel(
+  'net.grafm.pdfcompressor/save',
+);
+
+/// Eine Seite konnte nicht gerendert werden ([page] beginnt bei 1).
+class _PageRenderException implements Exception {
+  const _PageRenderException(this.page);
+  final int page;
+}
 
 /// Kodiert BGRA-Rohpixel als JPEG. Läuft in einem Hintergrund-Isolate,
 /// damit die Oberfläche flüssig bleibt.
@@ -34,7 +46,12 @@ Uint8List _encodeBgraToJpg(Uint8List bgra, int width, int height, int quality) {
 
 /// Startet [_encodeBgraToJpg] in einem eigenen Isolate. Muss top-level sein,
 /// damit die Closure keinen Widget-Zustand mitschleppt (der ist nicht sendbar).
-Future<Uint8List> _encodeJpgInBackground(Uint8List bgra, int width, int height, int quality) {
+Future<Uint8List> _encodeJpgInBackground(
+  Uint8List bgra,
+  int width,
+  int height,
+  int quality,
+) {
   return Isolate.run(() => _encodeBgraToJpg(bgra, width, height, quality));
 }
 
@@ -137,11 +154,23 @@ class _LandingPageState extends State<LandingPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildInfoRow(Icons.person_outline_rounded, _l.aboutAuthor, 'Michael Graf'),
+              _buildInfoRow(
+                Icons.person_outline_rounded,
+                _l.aboutAuthor,
+                'Michael Graf',
+              ),
               const SizedBox(height: 12),
-              _buildInfoRow(Icons.flutter_dash_rounded, _l.aboutTechnology, _l.aboutTechnologyValue),
+              _buildInfoRow(
+                Icons.flutter_dash_rounded,
+                _l.aboutTechnology,
+                _l.aboutTechnologyValue,
+              ),
               const SizedBox(height: 12),
-              _buildInfoRow(Icons.gavel_rounded, _l.aboutLicense, _l.aboutLicenseValue),
+              _buildInfoRow(
+                Icons.gavel_rounded,
+                _l.aboutLicense,
+                _l.aboutLicenseValue,
+              ),
             ],
           ),
           actions: [
@@ -229,6 +258,8 @@ class _LandingPageState extends State<LandingPage> {
     });
 
     pdfrx.PdfDocument? inputDoc;
+    JpegPdfWriter? writer;
+    String? partPath;
     try {
       // PDF direkt von der Datei öffnen, statt sie komplett in den Speicher
       // zu laden. Große PDFs (z. B. Scans) haben sonst den Speicher gesprengt
@@ -249,7 +280,14 @@ class _LandingPageState extends State<LandingPage> {
         jpegQuality = 35;
       }
 
-      final pw.Document outputPdf = pw.Document();
+      final Directory tempDir = await getTemporaryDirectory();
+      if (!mounted) return;
+      final String outputPath = '${tempDir.path}/${_outputFileName()}';
+
+      // Jede Seite wird sofort in eine Zwischendatei geschrieben, damit der
+      // Speicherbedarf nicht mit der Seitenzahl wächst.
+      partPath = '$outputPath.part';
+      writer = await JpegPdfWriter.open(partPath);
 
       for (final pdfrx.PdfPage page in inputDoc.pages) {
         if (!mounted) return;
@@ -272,94 +310,111 @@ class _LandingPageState extends State<LandingPage> {
           fullHeight: pxHeight.toDouble(),
           backgroundColor: 0xFFFFFFFF,
         );
-        if (rendered == null) continue;
+        // Lieber abbrechen als eine PDF mit fehlenden Seiten ausgeben
+        if (rendered == null) throw _PageRenderException(page.pageNumber);
 
-        final Uint8List pixels = rendered.pixels;
         final int w = rendered.width;
         final int h = rendered.height;
         final Uint8List jpgBytes;
         try {
-          jpgBytes = await _encodeJpgInBackground(pixels, w, h, jpegQuality);
+          jpgBytes = await _encodeJpgInBackground(
+            rendered.pixels,
+            w,
+            h,
+            jpegQuality,
+          );
         } finally {
           rendered.dispose();
         }
 
-        final pw.MemoryImage pdfImage = pw.MemoryImage(jpgBytes);
-        outputPdf.addPage(
-          pw.Page(
-            pageFormat: PdfPageFormat(page.width, page.height),
-            margin: pw.EdgeInsets.zero,
-            build: (pw.Context context) {
-              return pw.Center(
-                child: pw.Image(pdfImage, fit: pw.BoxFit.contain),
-              );
-            },
-          ),
+        await writer.addPage(
+          jpgBytes,
+          pixelWidth: w,
+          pixelHeight: h,
+          pageWidth: page.width,
+          pageHeight: page.height,
         );
       }
 
-      final Directory tempDir = await getTemporaryDirectory();
-      if (!mounted) return;
-      final String outputPath = '${tempDir.path}/${_outputFileName()}';
-
-      final File outFile = File(outputPath);
-      final Uint8List outputBytes = await outputPdf.save();
+      final JpegPdfWriter finishedWriter = writer;
+      writer = null;
+      await finishedWriter.close();
 
       // Ist das Ergebnis nicht kleiner als das Original (z. B. bei reinen
       // Text-PDFs, die durch die Umwandlung in Bilder wachsen), wird das
       // Original unverändert übernommen. So entsteht nie eine größere Datei.
+      final File partFile = File(partPath);
       final File inputFile = File(_selectedFile!.path!);
       final int originalSize = await inputFile.length();
-      final bool keepOriginal = outputBytes.length >= originalSize;
+      final int outputSize = await partFile.length();
+      final bool keepOriginal = outputSize >= originalSize;
+      final File outFile;
       if (keepOriginal) {
-        await inputFile.copy(outputPath);
+        await partFile.delete();
+        outFile = await inputFile.copy(outputPath);
       } else {
-        await outFile.writeAsBytes(outputBytes);
+        outFile = await partFile.rename(outputPath);
       }
+      partPath = null;
 
       if (!mounted) return;
       setState(() {
         _compressedFile = outFile;
-        _compressedFileSize = keepOriginal ? originalSize : outputBytes.length;
+        _compressedFileSize = keepOriginal ? originalSize : outputSize;
         _keptOriginal = keepOriginal;
         _isCompressing = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isCompressing = false;
       });
-      if (!mounted) return;
+      final String message = e is _PageRenderException
+          ? _l.errorRenderPage(e.page)
+          : _l.errorCompress('$e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_l.errorCompress('$e')),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     } finally {
+      await writer?.abort();
+      // Unfertige Zwischendatei nach Abbruch oder Fehler entfernen
+      if (partPath != null) {
+        try {
+          await File(partPath).delete();
+        } catch (_) {}
+      }
       await inputDoc?.dispose();
     }
   }
-// 3a. Fertige PDF direkt im Wunschordner (z. B. Downloads) speichern
-Future<void> _saveCompressedPdfToDevice() async {
+
+  // 3a. Fertige PDF direkt im Wunschordner (z. B. Downloads) speichern
+  Future<void> _saveCompressedPdfToDevice() async {
     if (_compressedFile == null || _selectedFile == null) return;
 
     try {
       final String suggestedName = _outputFileName();
-      final String dialogTitle = _l.saveDialogTitle;
+      final bool saved;
 
-      // Bytes der fertig komprimierten Datei lesen
-      final Uint8List bytes = await _compressedFile!.readAsBytes();
+      if (Platform.isAndroid) {
+        // Android: "Speichern unter"-Dialog des Systems; die Datei wird nativ
+        // per Datenstrom kopiert. Wichtig, wenn das Original übernommen wurde
+        // und mehrere hundert MB groß ist.
+        saved =
+            await _saveChannel.invokeMethod<bool>('saveFile', {
+              'path': _compressedFile!.path,
+              'name': suggestedName,
+            }) ??
+            false;
+      } else {
+        final Uri? savedUri = await FilePicker.saveFile(
+          dialogTitle: _l.saveDialogTitle,
+          fileName: suggestedName,
+          bytes: await _compressedFile!.readAsBytes(),
+        );
+        saved = savedUri != null;
+      }
 
-      // Öffnet den Android-"Speichern unter"-Dialog (gibt in v13 ein Uri? zurück)
-      final Uri? savedUri = await FilePicker.saveFile(
-        dialogTitle: dialogTitle,
-        fileName: suggestedName,
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-        bytes: bytes,
-      );
-
-      if (savedUri != null && mounted) {
+      if (saved && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_l.savedSuccess),
@@ -377,16 +432,13 @@ Future<void> _saveCompressedPdfToDevice() async {
         ),
       );
     }
-}
-  // 3b. Fertige PDF über andere Apps teilen (WhatsApp, Mail etc.)
-Future<void> _shareCompressedPdf() async {
-    if (_compressedFile == null) return;
-    await Share.shareXFiles(
-      [XFile(_compressedFile!.path)],
-      text: _l.shareText,
-    );
   }
-  
+
+  // 3b. Fertige PDF über andere Apps teilen (WhatsApp, Mail etc.)
+  Future<void> _shareCompressedPdf() async {
+    if (_compressedFile == null) return;
+    await Share.shareXFiles([XFile(_compressedFile!.path)], text: _l.shareText);
+  }
 
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
@@ -426,268 +478,335 @@ Future<void> _shareCompressedPdf() async {
         ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24.0, 0.0, 24.0, 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Spacer(),
-
-              // Kopfbereich: Icon + Titel
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.picture_as_pdf_rounded,
-                    size: 72,
-                    color: colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                _l.appTitle,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _l.appSubtitle,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildFeatureChip(context, Icons.wifi_off_rounded, _l.featureOffline),
-                  const SizedBox(width: 12),
-                  _buildFeatureChip(context, Icons.shield_outlined, _l.featurePrivacy),
-                ],
-              ),
-
-              const Spacer(),
-
-              // Wenn eine Datei ausgewählt wurde: Datei-Info & Einstellungen anzeigen
-              if (_selectedFile != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: colorScheme.secondaryContainer,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+        // Scrollbar, falls der Platz nicht reicht (Querformat, große Schrift).
+        // Sonst füllt die Spalte den Bildschirm und die Spacer verteilen den Raum.
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24.0, 0.0, 24.0, 24.0),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        children: [
-                          Icon(Icons.description_rounded, color: colorScheme.primary, size: 32),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _selectedFile!.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                Text(
-                                  _l.originalSize(_formatFileSize(_selectedFileSize ?? 0)),
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
+                      const Spacer(),
+
+                      // Kopfbereich: Icon + Titel
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            shape: BoxShape.circle,
                           ),
-                          if (!_isCompressing)
-                            IconButton(
-                              icon: const Icon(Icons.close_rounded),
-                              tooltip: _l.chooseOtherFile,
-                              onPressed: () {
-                                setState(() {
-                                  _selectedFile = null;
-                                  _selectedFileSize = null;
-                                  _compressedFile = null;
-                                });
-                              },
+                          child: Icon(
+                            Icons.picture_as_pdf_rounded,
+                            size: 72,
+                            color: colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        _l.appTitle,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineLarge
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
                             ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _l.appSubtitle,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(color: colorScheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildFeatureChip(
+                            context,
+                            Icons.wifi_off_rounded,
+                            _l.featureOffline,
+                          ),
+                          const SizedBox(width: 12),
+                          _buildFeatureChip(
+                            context,
+                            Icons.shield_outlined,
+                            _l.featurePrivacy,
+                          ),
                         ],
                       ),
 
-                      // Regler für Kompressionsstärke
-                      if (_compressedFile == null && !_isCompressing) ...[
-                        const Divider(height: 24),
-                        Text(
-                          _l.compressionStrength(_getCompressionLabel()),
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        Slider(
-                          value: _compressionLevel,
-                          min: 0,
-                          max: 2,
-                          divisions: 2,
-                          label: _getCompressionLabel(),
-                          onChanged: (value) {
-                            setState(() {
-                              _compressionLevel = value;
-                            });
-                          },
-                        ),
-                      ],
+                      const Spacer(),
 
-                      // Ladeanzeige während der Komprimierung
-                      if (_isCompressing) ...[
-                        const Divider(height: 24),
-                        Row(
-                          children: [
-                            const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 3),
-                            ),
-                            const SizedBox(width: 16),
-                            Text(_l.processingPage(_processedPages)),
-                          ],
-                        ),
-                      ],
+                      // Wenn eine Datei ausgewählt wurde: Datei-Info & Einstellungen anzeigen
+                      if (_selectedFile != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: colorScheme.secondaryContainer,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.description_rounded,
+                                    color: colorScheme.primary,
+                                    size: 32,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _selectedFile!.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        Text(
+                                          _l.originalSize(
+                                            _formatFileSize(
+                                              _selectedFileSize ?? 0,
+                                            ),
+                                          ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (!_isCompressing)
+                                    IconButton(
+                                      icon: const Icon(Icons.close_rounded),
+                                      tooltip: _l.chooseOtherFile,
+                                      onPressed: () {
+                                        setState(() {
+                                          _selectedFile = null;
+                                          _selectedFileSize = null;
+                                          _compressedFile = null;
+                                        });
+                                      },
+                                    ),
+                                ],
+                              ),
 
-                      // Ergebnis-Anzeige nach erfolgreicher Komprimierung
-                      if (_compressedFile != null && _compressedFileSize != null) ...[
-                        const Divider(height: 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                              // Regler für Kompressionsstärke
+                              if (_compressedFile == null &&
+                                  !_isCompressing) ...[
+                                const Divider(height: 24),
                                 Text(
-                                  _l.newSize,
-                                  style: const TextStyle(fontSize: 12),
+                                  _l.compressionStrength(
+                                    _getCompressionLabel(),
+                                  ),
+                                  style: Theme.of(context).textTheme.labelLarge,
                                 ),
-                                Text(
-                                  _formatFileSize(_compressedFileSize!),
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green.shade800,
+                                Slider(
+                                  value: _compressionLevel,
+                                  min: 0,
+                                  max: 2,
+                                  divisions: 2,
+                                  label: _getCompressionLabel(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _compressionLevel = value;
+                                    });
+                                  },
+                                ),
+                              ],
+
+                              // Ladeanzeige während der Komprimierung
+                              if (_isCompressing) ...[
+                                const Divider(height: 24),
+                                Row(
+                                  children: [
+                                    const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 3,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Text(_l.processingPage(_processedPages)),
+                                  ],
+                                ),
+                              ],
+
+                              // Ergebnis-Anzeige nach erfolgreicher Komprimierung
+                              if (_compressedFile != null &&
+                                  _compressedFileSize != null) ...[
+                                const Divider(height: 24),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _l.newSize,
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                        Text(
+                                          _formatFileSize(_compressedFileSize!),
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.green.shade800,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (_selectedFileSize != null &&
+                                        _selectedFileSize! > 0)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.shade100,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          !_keptOriginal &&
+                                                  _compressedFileSize! <
+                                                      _selectedFileSize!
+                                              ? '-${((1 - (_compressedFileSize! / _selectedFileSize!)) * 100).toStringAsFixed(0)}%'
+                                              : _l.alreadyOptimal,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.green.shade900,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                if (_keptOriginal) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _l.keptOriginalHint,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall,
+                                  ),
+                                ],
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Haupt-Button unten
+                      if (_compressedFile == null)
+                        FilledButton.icon(
+                          onPressed: _isCompressing
+                              ? null
+                              : (_selectedFile == null
+                                    ? _pickPdfFile
+                                    : _compressPdf),
+                          icon: Icon(
+                            _selectedFile == null
+                                ? Icons.upload_file_rounded
+                                : Icons.compress_rounded,
+                          ),
+                          label: Text(
+                            _selectedFile == null ? _l.pickPdf : _l.compressNow,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        )
+                      else
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                // Button 1: Direkt auf dem Gerät speichern (Downloads etc.)
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: _saveCompressedPdfToDevice,
+                                    icon: const Icon(Icons.download_rounded),
+                                    label: Text(
+                                      _l.save,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 18,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Button 2: Teilen (WhatsApp, E-Mail etc.)
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _shareCompressedPdf,
+                                    icon: const Icon(Icons.share_rounded),
+                                    label: Text(
+                                      _l.share,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 18,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                            if (_selectedFileSize != null && _selectedFileSize! > 0)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.shade100,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  !_keptOriginal && _compressedFileSize! < _selectedFileSize!
-                                      ? '-${((1 - (_compressedFileSize! / _selectedFileSize!)) * 100).toStringAsFixed(0)}%'
-                                      : _l.alreadyOptimal,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green.shade900,
-                                  ),
-                                ),
-                              ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: _pickPdfFile,
+                              child: Text(_l.compressAnother),
+                            ),
                           ],
                         ),
-                        if (_keptOriginal) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            _l.keptOriginalHint,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ],
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-              ],
-
-              // Haupt-Button unten
-              if (_compressedFile == null)
-                FilledButton.icon(
-                  onPressed: _isCompressing
-                      ? null
-                      : (_selectedFile == null ? _pickPdfFile : _compressPdf),
-                  icon: Icon(
-                    _selectedFile == null ? Icons.upload_file_rounded : Icons.compress_rounded,
-                  ),
-                  label: Text(
-                    _selectedFile == null ? _l.pickPdf : _l.compressNow,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                )
-             else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        // Button 1: Direkt auf dem Gerät speichern (Downloads etc.)
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _saveCompressedPdfToDevice,
-                            icon: const Icon(Icons.download_rounded),
-                            label: Text(
-                              _l.save,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                            ),
-                            style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 18),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        // Button 2: Teilen (WhatsApp, E-Mail etc.)
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _shareCompressedPdf,
-                            icon: const Icon(Icons.share_rounded),
-                            label: Text(
-                              _l.share,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 18),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: _pickPdfFile,
-                      child: Text(_l.compressAnother),
-                    ),
-                  ],
-                ), 
-            ],
+              ),
+            ),
           ),
         ),
       ),
@@ -710,9 +829,9 @@ Future<void> _shareCompressedPdf() async {
           Text(
             label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

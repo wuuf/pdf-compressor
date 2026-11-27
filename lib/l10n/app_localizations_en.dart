@@ -108,6 +108,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String errorRenderPage(int page) {
+    return 'Page $page could not be processed. The PDF was not compressed.';
+  }
+
+  @override
   String errorSave(String error) {
     return 'Error while saving: $error';
   }
